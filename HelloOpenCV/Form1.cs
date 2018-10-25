@@ -27,7 +27,7 @@ namespace HelloOpenCV
         {
             InitializeComponent();
 
-            cascadeClassifier = new CascadeClassifier(@"F:\Tools\OpenCV\build\etc\haarcascades\haarcascade_frontalface_alt.xml");
+            cascadeClassifier = new CascadeClassifier(@"Properties\haarcascade_frontalface_alt.xml");
 
             Application.Idle += new EventHandler(delegate
             {
