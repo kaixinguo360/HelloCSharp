@@ -78,7 +78,7 @@
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
     <None Include="packages.config" />
-    <None Include="Properties\frozen_inference_graph_141 14-51-46-798.pb">
+    <None Include="Properties\frozen_inference_graph.pb">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Properties\graph.pbtxt">

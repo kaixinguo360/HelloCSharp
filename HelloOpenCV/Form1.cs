@@ -31,7 +31,7 @@ namespace HelloOpenCV
 
             cascadeClassifier = new CascadeClassifier(@"Properties\haarcascade_frontalface_alt.xml");
 
-            net = DnnInvoke.ReadNetFromTensorflow(@"Properties\frozen_inference_graph_141 14-51-46-798.pb", @"Properties\graph.pbtxt");
+            net = DnnInvoke.ReadNetFromTensorflow(@"Properties\frozen_inference_graph.pb", @"Properties\graph.pbtxt");
 
             if(net == null)
             {
@@ -45,6 +45,8 @@ namespace HelloOpenCV
                     imageBox1.Image = ProcessImageUseDnn(img);
                 }
             });
+
+            button2_Click(null, null);
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -64,6 +66,7 @@ namespace HelloOpenCV
             Application.Idle += new EventHandler(delegate
             {
                 img = cameraCapture.QueryFrame().ToImage<Bgr, byte>();
+                CvInvoke.Flip(img.Mat, img.Mat, FlipType.Horizontal);
             });
         }
 
@@ -72,6 +75,8 @@ namespace HelloOpenCV
             try
             {
                 cameraCapture = new VideoCapture();
+                cameraCapture.SetCaptureProperty(CapProp.FrameWidth, 300);
+                cameraCapture.SetCaptureProperty(CapProp.FrameHeight, 300);
             }
             catch (Exception e)
             {
@@ -96,74 +101,49 @@ namespace HelloOpenCV
         {
             Mat frame = img.Mat;
 
-            int inWidth = 300;
-            int inHeight = 300;
-            float WHRatio = inWidth / (float)inHeight;
             String[] classNames = new String[]
             {
-                "background",
-                "face"
+                "",
+                "hand"
             };
 
-            Size frame_size = frame.Size;
-            Size cropSize = new Size();
+            Mat inputBlob = DnnInvoke.BlobFromImage(frame, 1, new Size(300, 300));
 
-            if (frame_size.Width / (float)frame_size.Height > WHRatio)
-            {
-                cropSize = new Size(
-                    (int)(frame_size.Height * WHRatio),
-                    frame_size.Height
-                    );
-            }
-            else
-            {
-                cropSize = new Size(
-                    frame_size.Width,
-                   (int)(frame_size.Width / WHRatio)
-                   );
-            }
-
-            Rectangle crop = new Rectangle(new Point((frame_size.Width -cropSize.Width) / 2,
-                (frame_size.Height - cropSize.Height) / 2),
-                cropSize);
-
-            Mat inputBlob = DnnInvoke.BlobFromImage(frame, 0.00784, new Size(300, 300), new MCvScalar(127.5, 127.5, 127.5), true, false);
             net.SetInput(inputBlob, "image_tensor");
-            Mat output = net.Forward("detection_out");
+            Mat prob = net.Forward("detection_out");
 
-          //Mat detectionMat = new Mat(output.size[2], output.size[3], Emgu.CV.CvEnum.DepthType.Cv32F, output.ptr<float>());
-            Mat detectionMat = new Mat(output.Size.Width, output.Size.Height, Emgu.CV.CvEnum.DepthType.Cv32F, 0);
+            byte[] data = new byte[5600];
+            prob.CopyTo(data);
 
-            //frame = frame(crop);
-            float confidenceThreshold = 0.20f;
-            for (int i = 0; i < detectionMat.Rows; i++)
+            //draw result
+            for (int i = 0; i < prob.SizeOfDimemsion[2]; i++)
             {
-                float confidence = detectionMat.GetData(i, 2 )[0];
-
-                if (confidence > confidenceThreshold)
+                var d = BitConverter.ToSingle(data, i * 28 + 8);
+                if (d > 0.4)
                 {
-                    int objectClass = (int)(detectionMat.GetData(i, 1)[0]);
+                    var idx = (int)BitConverter.ToSingle(data, i * 28 + 4);
+                    var w1 = (int)(BitConverter.ToSingle(data, i * 28 + 12) * img.Width);
+                    var h1 = (int)(BitConverter.ToSingle(data, i * 28 + 16) * img.Height);
+                    var w2 = (int)(BitConverter.ToSingle(data, i * 28 + 20) * img.Width);
+                    var h2 = (int)(BitConverter.ToSingle(data, i * 28 + 24) * img.Height);
 
-                    int xLeftBottom = (int)(detectionMat.GetData(i, 3)[0] * frame.Cols);
-                    int yLeftBottom = (int)(detectionMat.GetData(i, 4)[0] * frame.Rows);
-                    int xRightTop = (int)(detectionMat.GetData(i, 5)[0] * frame.Cols);
-                    int yRightTop = (int)(detectionMat.GetData(i, 6)[0] * frame.Rows);
-                    
-                    String conf = Convert.ToString(confidence);
+                    //string[] output_last = new string[] { classNames[idx], w1.ToString(), w2.ToString(), (h1).ToString(), (h2).ToString() };
 
-                    Rectangle object1 = new Rectangle((int)xLeftBottom, (int)yLeftBottom,
-                        (int)(xRightTop - xLeftBottom),
-                        (int)(yRightTop - yLeftBottom));
+                    //output_coordinates.Add(output_last);
 
-                    CvInvoke.Rectangle(frame, object1, new MCvScalar(0, 255, 0), 2);
-                    String label = classNames[objectClass] + ": " + conf;
-                    int baseLine = 0;
-                    Size labelSize = CvInvoke.GetTextSize(label, FontFace.HersheySimplex, 0.5, 1, ref baseLine);
-                    CvInvoke.Rectangle(frame, new Rectangle(new Point(xLeftBottom, yLeftBottom - labelSize.Height),
-                        new Size(labelSize.Width, labelSize.Height + baseLine)),
-                        new MCvScalar(0, 255, 0));
-                    CvInvoke.PutText(frame, label, new Point(xLeftBottom, yLeftBottom),
-                        FontFace.HersheySimplex, 0.5, new MCvScalar(0, 0, 0));
+                    var label = $"{classNames[idx]} {d * 100:0.00}%";
+
+                    //output.Add(idx.ToString());
+
+                    //label1.Text += "|" + idx.ToString();
+
+                    CvInvoke.Rectangle(img, new Rectangle(w1, h1, w2 - w1, h2 - h1), new MCvScalar(0, 255, 0), 2);
+
+                    int baseline = 0;
+                    var textSize = CvInvoke.GetTextSize(label, FontFace.HersheyTriplex, 0.5, 1, ref baseline);
+                    var y = h1 - textSize.Height < 0 ? h1 + textSize.Height : h1;
+                    CvInvoke.Rectangle(img, new Rectangle(w1, y - textSize.Height, textSize.Width, textSize.Height), new MCvScalar(0, 255, 0), -1);
+                    CvInvoke.PutText(img, label, new Point(w1, y), FontFace.HersheyTriplex, 0.5, new Bgr(0, 0, 0).MCvScalar);
                 }
             }
 
