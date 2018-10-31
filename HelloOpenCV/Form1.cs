@@ -33,16 +33,19 @@ namespace HelloOpenCV
 
             net = DnnInvoke.ReadNetFromTensorflow(@"Properties\frozen_inference_graph.pb", @"Properties\graph.pbtxt");
 
-            if(net == null)
+            if (net == null)
             {
                 throw new Exception("Error");
             }
 
             Application.Idle += new EventHandler(delegate
             {
-                if(img != null)
+                if (img != null)
                 {
-                    imageBox1.Image = ProcessImageUseDnn(img);
+                    //img = ProcessImage(img);
+                    img = ProcessImageUseDnn(img);
+                    imageBox1.Image = img;
+
                 }
             });
 
@@ -92,7 +95,12 @@ namespace HelloOpenCV
 
             foreach (var face in faces)
             {
-                img.Draw(face, new Bgr(0, double.MaxValue, 0), 3);
+                float X = (face.Left + face.Right) / 2;
+                float Y = (face.Top + face.Bottom) / 2;
+                float W = (face.Right - face.Left) / 2;
+                //float H = (face.Bottom - face.Top) / 2;
+                //img.Draw(face, new Bgr(0, double.MaxValue, 0), 3);
+                img.Draw(new CircleF(new PointF(X, Y), W / 3), new Bgr(0, double.MaxValue, 0), (int)W);
             }
             return img;
         }
@@ -119,7 +127,7 @@ namespace HelloOpenCV
             for (int i = 0; i < prob.SizeOfDimemsion[2]; i++)
             {
                 var d = BitConverter.ToSingle(data, i * 28 + 8);
-                if (d > 0.4)
+                if (d > 0.3)
                 {
                     var idx = (int)BitConverter.ToSingle(data, i * 28 + 4);
                     var w1 = (int)(BitConverter.ToSingle(data, i * 28 + 12) * img.Width);
@@ -127,15 +135,15 @@ namespace HelloOpenCV
                     var w2 = (int)(BitConverter.ToSingle(data, i * 28 + 20) * img.Width);
                     var h2 = (int)(BitConverter.ToSingle(data, i * 28 + 24) * img.Height);
 
-                    //string[] output_last = new string[] { classNames[idx], w1.ToString(), w2.ToString(), (h1).ToString(), (h2).ToString() };
+                    double X = (w1 + w2) / 2;
+                    double Y = (h1 + h2) / 2;
 
-                    //output_coordinates.Add(output_last);
+                    if (false)
+                    {
+                        continue;
+                    }
 
                     var label = $"{classNames[idx]} {d * 100:0.00}%";
-
-                    //output.Add(idx.ToString());
-
-                    //label1.Text += "|" + idx.ToString();
 
                     CvInvoke.Rectangle(img, new Rectangle(w1, h1, w2 - w1, h2 - h1), new MCvScalar(0, 255, 0), 2);
 
