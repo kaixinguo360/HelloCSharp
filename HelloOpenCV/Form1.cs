@@ -44,6 +44,8 @@ namespace HelloOpenCV
                 {
                     //img = ProcessImage(img);
                     img = ProcessImageUseDnn(img);
+                    img = DrawPoints(img);
+                    img = DrawKeyPoint(img);
                     imageBox1.Image = img;
 
                 }
@@ -88,6 +90,30 @@ namespace HelloOpenCV
             }
         }
 
+        private Image<Bgr, byte> DrawKeyPoint(Image<Bgr, byte> img)
+        {
+            if (current_point.TTL >= 50)
+            {
+                current_point.TTL -= 10;
+                img.Draw(new CircleF(new PointF((float)current_point.X, (float)current_point.Y), 5), new Bgr(255, 255, 0), 3);
+            }
+            return img;
+        }
+
+        private Image<Bgr, byte> DrawPoints(Image<Bgr, byte> img)
+        {
+            label1.Text = "";
+            foreach (MyPoint point in points)
+            {
+                label1.Text += point.TTL + ", " + point.X + ", " + point.Y + "\n";
+                if (point.TTL >= 50)
+                {
+                    img.Draw(new CircleF(new PointF((float)point.X, (float)point.Y), 5), new Bgr(0, double.MaxValue, 0), 3);
+                }
+            }
+            return img;
+        }
+
         private Image<Bgr, byte> ProcessImage(Image<Bgr, byte> img)
         {
             var grayframe = img.Convert<Gray, byte>();
@@ -104,6 +130,9 @@ namespace HelloOpenCV
             }
             return img;
         }
+
+        List<MyPoint> points = new List<MyPoint>();
+        MyPoint current_point = new MyPoint(0, 0);
 
         private Image<Bgr, byte> ProcessImageUseDnn(Image<Bgr, byte> img)
         {
@@ -138,6 +167,8 @@ namespace HelloOpenCV
                     double X = (w1 + w2) / 2;
                     double Y = (h1 + h2) / 2;
 
+                    AddPoint(X, Y); //添加点
+
                     if (false)
                     {
                         continue;
@@ -155,7 +186,123 @@ namespace HelloOpenCV
                 }
             }
 
+            UpdateTTL();
+
             return img;
+        }
+        /// <summary>
+        /// ///////////////////////////////////////////////////
+        /// </summary>
+        public void UpdateTTL()
+        {
+            MyPoint max_point = null;
+            for (int i = points.Count - 1; i >= 0; i--) //倒序遍历删除旧Point
+            {
+                MyPoint point = points[i];
+                point.TTL -= 10;
+                if (!point.IsAlive)
+                {
+                    points.Remove(point);
+                    continue;
+                }
+                if (current_point.TTL < 50)
+                {
+                    current_point.TTL = 90;
+                    current_point.X = point.X;
+                    current_point.Y = point.Y;
+                    continue;
+                }
+                if (!IsOnePoint(current_point.X, current_point.Y, point.X, point.Y, 50))
+                {
+                    continue;
+                }
+                if (max_point == null)
+                {
+                    max_point = point;
+                }
+                else
+                {
+                    if (point.TTL > max_point.TTL)
+                    {
+                        max_point = point;
+                    }
+                    else if (point.TTL == max_point.TTL)
+                    {
+                        double s_point = Math.Abs(current_point.X - point.X) + Math.Abs(current_point.Y - point.Y);
+                        double s_max_point = Math.Abs(current_point.X - max_point.X) + Math.Abs(current_point.Y - max_point.Y);
+                        if (s_max_point < s_point)
+                        {
+                            max_point = point;
+                        }
+                    }
+                }
+            }
+            if (max_point != null)
+            {
+                current_point.TTL += 20;
+                current_point.X = max_point.X;
+                current_point.Y = max_point.Y;
+            }
+        }
+
+        public void AddPoint(double x, double y)
+        {
+            bool isAdded = false;
+            foreach (MyPoint point in points)
+            {
+                if (IsOnePoint(x, y, point.X, point.Y))
+                {
+                    point.TTL += 20;
+                    point.X = (x + point.X) / 2;
+                    point.Y = (y + point.Y) / 2;
+                    isAdded = true;
+                    break;
+                }
+            }
+            if (!isAdded)
+            {
+                MyPoint point = new MyPoint(x, y);
+                point.TTL = 30;
+                points.Add(point);
+            }
+        }
+
+        public bool IsOnePoint(double x1, double y1, double x2, double y2, double size = 50)
+        {
+            return x1 < x2 + size && x1 > x2 - size &&
+                y1 < y2 + size && y1 > y2 - size;
+        }
+    }
+
+    public class MyPoint
+    {
+        public double X;
+        public double Y;
+        double ttl;
+        public double TTL
+        {
+            get { return ttl; }
+            set
+            {
+                if (value <= 100)
+                {
+                    ttl = value;
+                }
+                else
+                {
+                    ttl = 100;
+                }
+            }
+        }
+        public bool IsAlive
+        {
+            get { return ttl > 0; }
+        }
+
+        public MyPoint(double x, double y)
+        {
+            this.X = x;
+            this.Y = y;
         }
     }
 }
